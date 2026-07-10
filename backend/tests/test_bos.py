@@ -1,41 +1,24 @@
-from backend.app.market_structure.engine import MarketStructureEngine
-from backend.app.market_structure.bos import BOSDetector
+from backend.app.core.context import TradingContext
+from backend.app.market_structure.structure import MarketStructure
+from backend.app.events.bos import BOSDetector
 
 
-def main():
+context = TradingContext()
 
-    print("=" * 60)
-    print("Running Market Structure Engine")
-    print("=" * 60)
+ms = MarketStructure(
+    "data/processed/RELIANCE_NS_1H.csv"
+)
 
-    engine = MarketStructureEngine(
-        "data/processed/RELIANCE_NS_1H.csv"
-    )
+ohlc_df, structure_df = ms.build()
 
-    engine.run()
+context.ohlc = ohlc_df
+context.structure = structure_df
 
-    print("\nOHLC Shape:", engine.get_ohlc().shape)
-    print("Structure Shape:", engine.get_structure().shape)
+detector = BOSDetector(context)
 
-    print("\n" + "=" * 60)
-    print("Running BoS Detector")
-    print("=" * 60)
+bos_df = detector.detect()
 
-    bos = BOSDetector(
-        engine.get_ohlc(),
-        engine.get_structure()
-    )
+print("\n========== BOS EVENTS ==========\n")
+print(bos_df)
 
-    bos_df = bos.run()
-
-    print("\n========== BOS EVENTS ==========\n")
-
-    print(bos_df)
-
-    print("\n========== SUMMARY ==========\n")
-
-    bos.summary()
-
-
-if __name__ == "__main__":
-    main()
+detector.summary()

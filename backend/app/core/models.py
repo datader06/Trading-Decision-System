@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class MarketEvent:
+class Event:
 
     event: str
 

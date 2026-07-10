@@ -1,19 +1,21 @@
 from dataclasses import dataclass
 
-from backend.app.core.constants import NEUTRAL
-
 
 @dataclass
 class MarketState:
 
-    trend: str = NEUTRAL
+    trend: str = "Neutral"
 
-    latest_hh_index: int | None = None
-    latest_hl_index: int | None = None
+    # Latest Structure
+    last_hh: float | None = None
+    last_hl: float | None = None
+    last_lh: float | None = None
+    last_ll: float | None = None
 
-    latest_lh_index: int | None = None
-    latest_ll_index: int | None = None
+    # Protected Levels
+    protected_high: float | None = None
+    protected_low: float | None = None
 
-    last_bos_index: int | None = None
-
-    last_choch_index: int | None = None
+    # Latest Events
+    current_bos = None
+    current_choch = None

@@ -1,21 +1,40 @@
+from abc import ABC, abstractmethod
 import pandas as pd
 
 
-class BaseDetector:
+class BaseDetector(ABC):
     """
-    Base class for all market detectors.
+    Base class for all detectors in the Trading Decision System.
+
+    Every detector:
+    - Has access to the shared TradingContext
+    - Stores detected events
+    - Can print summaries
+    - Can save outputs
     """
 
-    def __init__(self):
+    def __init__(self, context):
 
+        self.context = context
         self.events = []
 
-    def add_event(self, event):
+    @abstractmethod
+    def detect(self):
+        """
+        Every detector must implement this.
+        """
+        pass
 
+    def add_event(self, event):
+        """
+        Add a detected event.
+        """
         self.events.append(event.__dict__)
 
     def get_events(self):
-
+        """
+        Return all events as DataFrame.
+        """
         return pd.DataFrame(self.events)
 
     def summary(self):
@@ -26,7 +45,7 @@ class BaseDetector:
 
         print(f"Total Events : {len(df)}")
 
-        if len(df):
+        if not df.empty:
 
             print("\nEvents by Type:")
 
@@ -38,6 +57,8 @@ class BaseDetector:
 
         df = self.get_events()
 
-        df.to_csv(filepath, index=False)
+        if not df.empty:
 
-        print(f"\nSaved to:\n{filepath}")
+            df.to_csv(filepath, index=False)
+
+            print(f"\nSaved to:\n{filepath}")
