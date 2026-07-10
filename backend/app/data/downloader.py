@@ -11,7 +11,7 @@ class DataDownloader:
 
     def download(self):
         """
-        Downloads OHLCV data from Yahoo Finance
+        Downloads OHLCV data from Yahoo Finance.
         """
 
         print(f"\nDownloading {self.ticker}...")
@@ -20,37 +20,86 @@ class DataDownloader:
             self.ticker,
             interval=self.interval,
             period=self.period,
-            progress=False
+            progress=False,
+            auto_adjust=False
         )
 
         if df.empty:
             raise Exception("Downloaded DataFrame is empty!")
 
+        # Flatten MultiIndex columns if present
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
+        # Reset index so Datetime becomes a column
         df.reset_index(inplace=True)
+        # Remove Adj Close if present
+        if "Adj Close" in df.columns:
+            df.drop(columns=["Adj Close"], inplace=True)
+
+        # Reorder columns
+        df = df[
+    [
+        "Datetime",
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "Volume",
+    ]
+]
 
         return df
 
     def validate(self, df):
         """
-        Validates downloaded data.
+        Validate downloaded data.
         """
 
-        print("Validating data...")
+        print("\nValidating data...")
 
-        if df.isnull().sum().sum() > 0:
-            print("Warning: Missing values detected!")
+        required_columns = [
+            "Datetime",
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume"
+        ]
 
-        if df.duplicated().sum() > 0:
-            print("Warning: Duplicate rows found!")
+        for col in required_columns:
+            if col not in df.columns:
+                raise Exception(f"Missing column: {col}")
+
+        # Convert numeric columns
+        numeric_columns = [
+            "Open",
+            "High",
+            "Low",
+            "Close",
+            "Volume"
+        ]
+
+        for col in numeric_columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+        # Remove rows containing NaN
+        df.dropna(inplace=True)
+
+        # Remove duplicate rows
+        df.drop_duplicates(inplace=True)
 
         print("Validation Complete.")
+        print(f"Rows: {len(df)}")
+
+        return df
 
     def save(self, df):
         """
-        Saves data as CSV.
+        Save cleaned data.
         """
 
-        folder = "backend/data"
+        folder = "data/raw"
 
         os.makedirs(folder, exist_ok=True)
 
@@ -60,11 +109,15 @@ class DataDownloader:
 
         df.to_csv(path, index=False)
 
-        print(f"Data saved at:\n{path}")
+        print(f"\nData saved successfully:")
+        print(path)
 
     def run(self):
+
         df = self.download()
-        self.validate(df)
+
+        df = self.validate(df)
+
         self.save(df)
 
         return df
@@ -78,6 +131,10 @@ if __name__ == "__main__":
         period="60d"
     )
 
-    data = downloader.run()
+    df = downloader.run()
 
-    print(data.head())
+    print("\nPreview:")
+    print(df.head())
+
+    print("\nData Types:")
+    print(df.dtypes)
