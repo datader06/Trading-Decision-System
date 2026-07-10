@@ -140,3 +140,21 @@ cython_debug/
 Thumbs.db
 .vscode/
 .idea/
+# ============================
+# Trading Decision System
+# ============================
+
+# Live market data
+data/live/
+
+# Processed data (can be regenerated)
+data/processed/
+
+# ML models (future)
+models/
+
+# Logs
+logs/
+
+# Environment variables
+.env
