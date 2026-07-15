@@ -1,74 +1,107 @@
+"""
+resampler.py
+============
+MultiTimeframeGenerator downloads raw OHLCV data and resamples it
+into multiple timeframes required for the MTF analysis pipeline.
+
+Usage:
+    gen = MultiTimeframeGenerator(ticker="RELIANCE.NS")
+    tf_data = gen.run(raw_df)   # returns dict[str, pd.DataFrame]
+"""
+
+from __future__ import annotations
+
 import os
+from typing import Optional
+
 import pandas as pd
+
+from backend.app.core.timeframe import Timeframe
 
 
 class MultiTimeframeGenerator:
+    """
+    Resamples a raw 5-minute OHLCV DataFrame into every analysis timeframe.
 
-    def __init__(self, input_file):
-        self.input_file = input_file
+    Args:
+        ticker    : Ticker symbol (used for file naming only).
+        timeframes: List of Timeframe members to generate.
+                    Defaults to all five standard timeframes.
+        save_dir  : Directory to save CSVs.  Pass None to skip saving.
+    """
 
-    def load_data(self):
-        import os
+    DEFAULT_TIMEFRAMES = Timeframe.ordered()   # D1 → H4 → H1 → M15 → M5
 
-        print("Current Working Directory:", os.getcwd())
-        print("Input file:", self.input_file)
-        print("Exists:", os.path.exists(self.input_file))
-        df = pd.read_csv(self.input_file)
+    def __init__(
+        self,
+        ticker: str = "TICKER",
+        timeframes: Optional[list] = None,
+        save_dir: Optional[str] = "data/processed",
+    ) -> None:
+        self.ticker     = ticker
+        self.timeframes = timeframes or self.DEFAULT_TIMEFRAMES
+        self.save_dir   = save_dir
 
-        # Convert datetime column
+    # ─────────────────────────────────────────────────────────────────
+    def load_csv(self, input_file: str) -> pd.DataFrame:
+        """Load a raw OHLCV CSV into a datetime-indexed DataFrame."""
+        df = pd.read_csv(input_file)
         df["Datetime"] = pd.to_datetime(df["Datetime"])
-
         df.set_index("Datetime", inplace=True)
-
         return df
 
-    def resample(self, df, timeframe):
-
-        resampled = df.resample(timeframe).agg({
-            "Open": "first",
-            "High": "max",
-            "Low": "min",
-            "Close": "last",
-            "Volume": "sum"
-        })
-
+    # ─────────────────────────────────────────────────────────────────
+    def resample(self, df: pd.DataFrame, timeframe: Timeframe) -> pd.DataFrame:
+        """Resample a DataFrame to the given Timeframe."""
+        resampled = df.resample(timeframe.resample_str).agg(
+            {
+                "Open":   "first",
+                "High":   "max",
+                "Low":    "min",
+                "Close":  "last",
+                "Volume": "sum",
+            }
+        )
         resampled.dropna(inplace=True)
-
         return resampled
 
-    def save(self, df, filename):
-
-        os.makedirs("data/processed", exist_ok=True)
-
-        path = os.path.join("data/processed", filename)
-
+    # ─────────────────────────────────────────────────────────────────
+    def _save(self, df: pd.DataFrame, timeframe: Timeframe) -> None:
+        """Persist a resampled DataFrame to CSV."""
+        if self.save_dir is None:
+            return
+        os.makedirs(self.save_dir, exist_ok=True)
+        safe_ticker = self.ticker.replace(".", "_")
+        filename = f"{safe_ticker}_{timeframe.name}.csv"
+        path = os.path.join(self.save_dir, filename)
         df.to_csv(path)
+        print(f"  Saved {timeframe.display_name:10s} → {path}")
 
-        print(f"Saved: {path}")
+    # ─────────────────────────────────────────────────────────────────
+    def run(self, raw_df: pd.DataFrame) -> dict[str, pd.DataFrame]:
+        """
+        Generate all configured timeframes from a raw OHLCV DataFrame.
 
-    def run(self):
+        Args:
+            raw_df: Raw OHLCV data (must be datetime-indexed).
 
-        df = self.load_data()
+        Returns:
+            Dictionary keyed by Timeframe.resample_str  e.g. {"1h": df, "4h": df, ...}
+        """
+        results: dict[str, pd.DataFrame] = {}
 
-        timeframes = {
-    "15min": "RELIANCE_NS_15m.csv",
-    "30min": "RELIANCE_NS_30m.csv",
-    "1h": "RELIANCE_NS_1H.csv",
-    "4h": "RELIANCE_NS_4H.csv",
-    "1D": "RELIANCE_NS_1D.csv"
-        }
+        print(f"\nGenerating {len(self.timeframes)} timeframes for {self.ticker}...")
 
-        for tf, filename in timeframes.items():
+        for tf in self.timeframes:
+            resampled = self.resample(raw_df, tf)
+            results[tf.resample_str] = resampled
+            self._save(resampled, tf)
 
-            new_df = self.resample(df, tf)
+        print("Done.\n")
+        return results
 
-            self.save(new_df, filename)
-
-
-if __name__ == "__main__":
-
-    generator = MultiTimeframeGenerator(
-        "data/raw/RELIANCE_NS_5m.csv"
-    )
-
-    generator.run()
+    # ─────────────────────────────────────────────────────────────────
+    def run_from_csv(self, input_file: str) -> dict[str, pd.DataFrame]:
+        """Convenience wrapper: load CSV then generate all timeframes."""
+        raw_df = self.load_csv(input_file)
+        return self.run(raw_df)
